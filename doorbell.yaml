@@ -1,0 +1,102 @@
+substitutions:
+  name: "doorbell"
+  room: ""
+  friendly_name: "Doorbell"
+  project_name: "cooperised.Doorbell"
+  project_version: "1.1.0"
+  hidden_ssid: "false"
+  pull_angle: "130"
+  debounce_on: "10ms"
+  debounce_off: "100ms"
+  button_pin: "D1"
+  stepper_enable_pin: "D3"
+  stepper_step_pin: "D7"
+  stepper_dir_pin: "D8"
+  stepper_enable_invert: "true"
+  stepper_max_speed: "1000 steps/s"
+  stepper_acceleration: "2500"
+  stepper_deceleration: "5000"
+
+esphome:
+  name: "${name}"
+  name_add_mac_suffix: false
+  project:
+    name: "${project_name}"
+    version: "${project_version}"
+
+esp8266:
+  board: nodemcuv2
+
+logger:
+
+api:
+
+ota:
+
+wifi:
+  fast_connect: "${hidden_ssid}"
+  ap: {}
+
+captive_portal:
+
+improv_serial:
+
+dashboard_import:
+  package_import_url: github://cooperised/doorbell/doorbell.yaml@main
+  import_full_config: false
+
+button:
+  - platform: template
+    id: sounder
+    name: "Doorbell Sounder"
+    icon: "mdi:alarm-bell"
+    on_press:
+      then:
+        - logger.log: "ring ring"
+        - output.turn_on: step_enable
+        - stepper.report_position:
+            id: chime
+            position: 0
+        - stepper.set_target:
+            id: chime
+            target: "${pull_angle}"
+        - wait_until:
+            lambda: |-
+              return id(chime).current_position == id(chime).target_position;
+        - stepper.set_target:
+            id: chime
+            target: 0
+        - wait_until:
+            lambda: |-
+              return id(chime).current_position == id(chime).target_position;
+        - delay: 500ms
+        - output.turn_off: step_enable
+    
+binary_sensor:
+  - platform: gpio
+    name: "Doorbell Button"
+    icon: "mdi:gesture-tap-button"
+    filters:
+      - delayed_on: "${debounce_on}"
+      - delayed_off: "${debounce_off}"
+    pin:
+      number: "${button_pin}"
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+
+output:
+  - platform: gpio
+    pin: "${stepper_enable_pin}"
+    id: step_enable
+    inverted: "${stepper_enable_invert}"
+
+stepper:
+  - platform: a4988
+    id: chime
+    step_pin: "${stepper_step_pin}"
+    dir_pin: "${stepper_dir_pin}"
+    max_speed: "${stepper_max_speed}"
+    acceleration: "${stepper_acceleration}"
+    deceleration: "${stepper_deceleration}"
